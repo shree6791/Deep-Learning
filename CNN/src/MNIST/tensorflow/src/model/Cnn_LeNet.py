@@ -13,8 +13,8 @@ tf.reset_default_graph()
 nw = Network()
 
 # Config Parameters
-batch_size = 50
-max_steps = 1100
+batch_size = 250
+max_steps = 1000
 
 
 # Find Project Directory Path
@@ -43,11 +43,11 @@ with tf.name_scope('input'):
 print("\nArchitcture Design:\n")
     
 # Convolution Layer 1
-with tf.name_scope('Convoltion_Layer_1'):   
+with tf.name_scope('Convoltion_Layer_1'):    
     
     with tf.name_scope('weights_1'):
-        W_conv1 = nw.weight_variable([5, 5, 1, 32])
-        b_conv1 = nw.bias_variable([32])
+        W_conv1 = nw.weight_variable([5, 5, 1, 6])
+        b_conv1 = nw.bias_variable([6])
             
     with tf.name_scope('input_reshape'):
         x_image = tf.reshape(x, [-1,28,28,1])
@@ -64,18 +64,18 @@ with tf.name_scope('Convoltion_Layer_1'):
 
 # Max Pooling Layer 1    
 with tf.name_scope('Max_Pooling_1'):
-    h_pool1 = nw.max_pool_2x2_Same(h_conv1)
+    h_pool1 = nw.max_pool_2x2_Valid(h_conv1)
     print("h_pool1 Shape: " , h_pool1.get_shape())
 
 # Convolution Layer 2
 with tf.name_scope('Convoltion_Layer_2'): 
     
     with tf.name_scope('weights_2'):
-        W_conv2 = nw.weight_variable([5, 5, 32, 64])
-        b_conv2 = nw.bias_variable([64])
+        W_conv2 = nw.weight_variable([5, 5, 6, 16])
+        b_conv2 = nw.bias_variable([16])
     
     with tf.name_scope('Convoltion_Layer_2'):
-        h_conv2 = nw.conv2d_Same(h_pool1, W_conv2) + b_conv2       
+        h_conv2 = nw.conv2d_Valid(h_pool1, W_conv2) + b_conv2       
         
     # Activation
     with tf.name_scope('ReLu__2'):
@@ -85,21 +85,21 @@ with tf.name_scope('Convoltion_Layer_2'):
 
 # Sub Sampling    
 with tf.name_scope('Max_Pooling_2'):    
-    h_pool2 = nw.max_pool_2x2_Same(h_conv2)
+    h_pool2 = nw.max_pool_2x2_Valid(h_conv2)
     print("h_pool2 Shape: " , h_pool2.get_shape())
     
 # Fully Connected Layer
 with tf.name_scope('FC_1'):
     
     with tf.name_scope('weights_fc1'):
-        W_fc1 = nw.weight_variable([7 * 7 * 64, 1024])
-        b_fc1 = nw.bias_variable([1024])
+        W_fc1 = nw.weight_variable([5 * 5 * 16, 120])
+        b_fc1 = nw.bias_variable([120])
     
     with tf.name_scope('Un_Rolling'):    
-        h_pool2_flat = tf.reshape(h_pool2, [-1, 7*7*64])
+        h_pool2_flat = tf.reshape(h_pool2, [-1, 5*5*16])
         
     print("h_pool2_flat Shape: " , h_pool2_flat.get_shape())
-     
+         
     with tf.name_scope('weighted_sum'):
         h_fc1 = tf.matmul(h_pool2_flat, W_fc1) + b_fc1
         
@@ -111,20 +111,35 @@ with tf.name_scope('FC_1'):
 # Drop Out
 with tf.name_scope('Drop_Out'):
     keep_prob = tf.placeholder(tf.float32, name='dropout-probability')
-    h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
-
+    h_fc1_drop = tf.nn.dropout(activation_3, keep_prob)
+        
 
 # Output Layer
 with tf.name_scope('FC_2'):
     
     with tf.name_scope('weights_fc2'):
-        W_fc2 = nw.weight_variable([1024, 10])
-        b_fc2 = nw.bias_variable([10])
+        W_fc2 = nw.weight_variable([120, 84])
+        b_fc2 = nw.bias_variable([84])
 
     with tf.name_scope('weighted_sum'):
-        y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
+        h_fc2 = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
         
-    print("FC_2 Shape: " , y_conv.get_shape())
+    with tf.name_scope('ReLu_4'):
+        activation_4 = tf.nn.relu(h_fc2)
+        
+    print("FC_1 Shape: " , activation_4.get_shape())
+
+# Output Layer
+with tf.name_scope('FC_3'):
+    
+    with tf.name_scope('weights_fc3'):
+        W_fc3 = nw.weight_variable([84, 10])
+        b_fc3 = nw.bias_variable([10])
+
+    with tf.name_scope('weighted_sum'):
+        y_conv = tf.matmul(activation_4, W_fc3) + b_fc3
+        
+    print("FC_3 Shape: " , y_conv.get_shape())
 
 # Find Cross Entropy
 with tf.name_scope('cross_entropy'):
@@ -148,6 +163,7 @@ summary_op = tf.summary.merge_all()
 
 with tf.Session() as sess:
 
+    count = 0
     
     tf.global_variables_initializer().run()
 
@@ -175,3 +191,8 @@ with tf.Session() as sess:
             train_writer.add_summary(summary, i)
             
         train_op.run(feed_dict={x: batch[0], y: batch[1], keep_prob: 0.9})
+        
+        if train_accuracy > test_accuracy:
+            count = count + 1
+
+    print(count)
